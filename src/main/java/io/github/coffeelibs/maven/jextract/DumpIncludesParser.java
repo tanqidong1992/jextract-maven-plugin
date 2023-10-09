@@ -83,15 +83,21 @@ public class DumpIncludesParser {
     }
 
     public static void toFile(List<Include> includes,File target) throws IOException {
-        FileWriter fileWriter=new FileWriter(target);
-        includes.forEach(include -> {
-            try {
-                fileWriter.write(include.toRaw());
-                fileWriter.write(System.lineSeparator());
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        });
+        try(FileWriter fileWriter=new FileWriter(target)) {
+            includes.forEach(include -> {
+                try {
+                    System.out.println(include.toRaw());
+                    fileWriter.write(include.toRaw());
+                    fileWriter.write(System.lineSeparator());
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            fileWriter.flush();
+        }catch (IOException e){
+            throw new RuntimeException("",e);
+        }
+
     }
 
 

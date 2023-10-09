@@ -29,11 +29,12 @@ class DumpIncludesParserTest {
     void parseWithFilter() throws IOException {
         File file=new File("jextract.includes.txt");
         Map<String, String[]> filters=new HashMap<>();
-        filters.put(DumpIncludesParser.TYPE_FUNCTION,new String[]{"app_indicator"});
+        filters.put(DumpIncludesParser.TYPE_TYPEDEF,new String[]{"AppIndicator"});
         List<DumpIncludesParser.Include> includes=DumpIncludesParser.parse(file,filters);
         System.out.println(new GsonBuilder().setPrettyPrinting().create().toJson(includes));
 
         Path dst= Files.createTempFile("test","txt");
         DumpIncludesParser.toFile(includes,dst.toFile());
+        System.out.println(dst.toFile().getAbsolutePath());
     }
 }
