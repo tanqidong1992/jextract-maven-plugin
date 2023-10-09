@@ -6,18 +6,20 @@ import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.project.MavenProject;
+import org.codehaus.plexus.util.FileUtils;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.nio.file.Path;
+import java.util.*;
+
+import static io.github.coffeelibs.maven.jextract.DumpIncludeMojo.dumpIncludes;
 
 @SuppressWarnings({"unused", "MismatchedReadAndWriteOfArray"})
-@Mojo(name = "sources", defaultPhase = LifecyclePhase.GENERATE_SOURCES, threadSafe = true, requiresOnline = true)
-public class SourcesMojo extends AbstractMojo {
+@Mojo(name = "generate-sources", defaultPhase = LifecyclePhase.GENERATE_SOURCES, threadSafe = true, requiresOnline = true)
+public class GenerateSourcesMojo extends AbstractMojo {
 
 	@Parameter(defaultValue = "${project}")
 	private MavenProject project;
@@ -150,7 +152,32 @@ public class SourcesMojo extends AbstractMojo {
 		} catch (IOException e) {
 			throw new MojoFailureException("Failed to create dir " + outputDirectory.getAbsolutePath(), e);
 		}
-
+		Path originIncludeFile= null;
+		try {
+			originIncludeFile = Files.createTempFile("jextract.includes.origin",".txt");
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
+		dumpIncludes(executable,originIncludeFile.toFile(),headerSearchPaths,headerFile,cPreprocessorMacros,workingDirectory,getLog());
+		Map<String, String[]> filters=new HashMap<>();
+		filters.put(DumpIncludesParser.TYPE_FUNCTION,includeFunctions);
+		filters.put(DumpIncludesParser.TYPE_CONSTANT,includeConstants);
+		filters.put(DumpIncludesParser.TYPE_STRUCT,includeStructs);
+		filters.put(DumpIncludesParser.TYPE_TYPEDEF,includeTypedefs);
+		filters.put(DumpIncludesParser.TYPE_UNION,includeUnions);
+		filters.put(DumpIncludesParser.TYPE_VAR,includeVars);
+		List<DumpIncludesParser.Include> includes=DumpIncludesParser.parse(originIncludeFile.toFile(),filters);
+		Path filteredIncludeFile= null;
+		try {
+			filteredIncludeFile = Files.createTempFile("jextract.includes.filtered",".txt");
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
+		try {
+			DumpIncludesParser.toFile(includes,filteredIncludeFile.toFile());
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
 		List<String> args = new ArrayList<>();
 		args.add(executable);
 		args.add("--source");
@@ -170,30 +197,7 @@ public class SourcesMojo extends AbstractMojo {
 			args.add("-D");
 			args.add(str);
 		});
-		Arrays.stream(includeFunctions).forEach(str -> {
-			args.add("--include-function");
-			args.add(str);
-		});
-		Arrays.stream(includeConstants).forEach(str -> {
-			args.add("--include-constant");
-			args.add(str);
-		});
-		Arrays.stream(includeStructs).forEach(str -> {
-			args.add("--include-struct");
-			args.add(str);
-		});
-		Arrays.stream(includeTypedefs).forEach(str -> {
-			args.add("--include-typedef");
-			args.add(str);
-		});
-		Arrays.stream(includeUnions).forEach(str -> {
-			args.add("--include-union");
-			args.add(str);
-		});
-		Arrays.stream(includeVars).forEach(str -> {
-			args.add("--include-var");
-			args.add(str);
-		});
+		args.add("@"+filteredIncludeFile.toFile().getAbsolutePath());
 		args.add(headerFile);
 
 		getLog().info("Running: " + String.join(" ", args));
